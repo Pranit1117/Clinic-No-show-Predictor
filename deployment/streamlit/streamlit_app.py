@@ -958,4 +958,4 @@ elif "Drift" in page:
         st.info(f"**Next scheduled check:** {(datetime.now()+timedelta(hours=24)).strftime('%d %b %Y · %H:%M')}")
 
     st.caption("DETAILED REPORT")
-    st.dataframe(dfd, hide_index=True, use_container_width=True, height=
+    st.dataframe(dfd, hide_index=True, use_container_width=True, height=290)
