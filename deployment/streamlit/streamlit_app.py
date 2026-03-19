@@ -592,7 +592,7 @@ if "Overview" in page:
     with col_b:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">No-Show Probability — All Appointments (sorted by risk)</div>', unsafe_allow_html=True)
         dfs = df.sort_values("no_show_prob", ascending=False).reset_index(drop=True)
-        clrs = [RISK_COLORS.get(str(r),"#8B9FD4") for r in dfs["risk_tier"]]
+        clrs = [RISK_COLORS.get(str(r), RISK_COLORS["LOW"]) for r in dfs["risk_tier"]]
         fig_b = go.Figure(go.Bar(
             x=dfs.index, y=dfs["no_show_prob"],
             marker=dict(color=clrs, line=dict(width=0)),
@@ -613,7 +613,12 @@ if "Overview" in page:
         nd = df.groupby("neighbourhood")["no_show_prob"].mean().sort_values().reset_index()
         fig_n = go.Figure(go.Bar(
             x=nd["no_show_prob"], y=nd["neighbourhood"], orientation="h",
-            marker=dict(color=nd["no_show_prob"], colorscale=[[0,"#00E5A0"],[0.5,"#FFB347"],[1,"#FF4B6E"]], showscale=False),
+            marker=dict(
+                color=nd["no_show_prob"],
+                colorscale=[[0,"#00E5A0"],[0.5,"#FFB347"],[1,"#FF4B6E"]],
+                cmin=0.10, cmax=0.60,
+                showscale=False,
+            ),
             hovertemplate="<b>%{y}</b><br>Avg Risk: %{x:.1%}<extra></extra>",
         ))
         fig_n.update_layout(**layout(height=310))
@@ -626,6 +631,8 @@ if "Overview" in page:
         fig_l = go.Figure()
         for tier, color in RISK_COLORS.items():
             sub = df[df["risk_tier"]==tier]
+            if len(sub) == 0:
+                continue
             fig_l.add_trace(go.Scatter(
                 x=sub["lead_time_days"], y=sub["no_show_prob"], mode="markers", name=tier,
                 marker=dict(color=color, size=7, opacity=0.75),
@@ -959,3 +966,4 @@ elif "Drift" in page:
 
     st.caption("DETAILED REPORT")
     st.dataframe(dfd, hide_index=True, use_container_width=True, height=290)
+
