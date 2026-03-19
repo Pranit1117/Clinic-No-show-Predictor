@@ -2,6 +2,8 @@
 
 > **End-to-end ML system that predicts patient appointment no-shows, recommends targeted interventions, and monitors model drift — saving clinics $3,300+/day in recovered revenue.**
 
+LIVE APP LINK : https://clinic-no-show-predictor-fa6rux6mwm4tyngyhunwjw.streamlit.app/
+
 ---
 
 ## 🎯 Business Problem
