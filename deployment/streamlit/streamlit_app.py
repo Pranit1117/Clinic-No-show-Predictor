@@ -347,12 +347,12 @@ def style_axes(fig, xtitle="", ytitle="", xfmt="", yfmt="", xangle=0):
         gridcolor="rgba(0,212,255,0.07)",
         zerolinecolor="rgba(0,212,255,0.12)",
         tickfont=dict(color="#E8F0FF", size=11),
-        titlefont=dict(color="#B8CCEE", size=11),
+        title_font=dict(color="#B8CCEE", size=11),
     )
     xextra = {}
     yextra = {}
-    if xtitle: xextra["title"] = xtitle
-    if ytitle: yextra["title"] = ytitle
+    if xtitle: xextra["title_text"] = xtitle
+    if ytitle: yextra["title_text"] = ytitle
     if xfmt:   xextra["tickformat"] = xfmt
     if yfmt:   yextra["tickformat"] = yfmt
     if xangle: xextra["tickangle"] = xangle
@@ -594,31 +594,52 @@ if "Overview" in page:
     with col_b:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">No-Show Probability — All Appointments (sorted by risk)</div>', unsafe_allow_html=True)
         dfs = df.sort_values("no_show_prob", ascending=False).reset_index(drop=True)
-        clrs = [RISK_COLORS.get(str(r),"#8B9FD4") for r in dfs["risk_tier"]]
+        # Clamp probabilities to [0, 1] to prevent axis blowout on uploaded data
+        dfs["no_show_prob"] = dfs["no_show_prob"].clip(0.0, 1.0)
+        clrs = [RISK_COLORS.get(str(r), "#8B9FD4") for r in dfs["risk_tier"]]
         fig_b = go.Figure(go.Bar(
             x=dfs.index, y=dfs["no_show_prob"],
             marker=dict(color=clrs, line=dict(width=0)),
             hovertemplate="<b>%{customdata[0]}</b><br>Risk: %{y:.1%} · %{customdata[1]}<extra></extra>",
             customdata=list(zip(dfs["patient_id"], dfs["risk_tier"])),
         ))
-        fig_b.add_hline(y=0.55, line_dash="dot", line_color="#FF4B6E", annotation_text="High", annotation_font_color="#FF4B6E", annotation_font_size=10)
-        fig_b.add_hline(y=0.35, line_dash="dot", line_color="#FFB347", annotation_text="Medium", annotation_font_color="#FFB347", annotation_font_size=10)
+        fig_b.add_hline(y=0.55, line_dash="dot", line_color="#FF4B6E",
+                        annotation_text="High", annotation_font_color="#FF4B6E", annotation_font_size=10)
+        fig_b.add_hline(y=0.35, line_dash="dot", line_color="#FFB347",
+                        annotation_text="Medium", annotation_font_color="#FFB347", annotation_font_size=10)
         fig_b.update_layout(**layout(height=270))
-        style_axes(fig_b, yfmt=".0%")
+        style_axes(fig_b)
         fig_b.update_xaxes(showticklabels=False)
+        # FIX: use ".0%" (no comma) and enforce range + autorange=False
+        fig_b.update_yaxes(
+            tickformat=".0%",
+            range=[0, 0.75],
+            autorange=False,
+            tickvals=[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            ticktext=["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%"],
+        )
         st.plotly_chart(fig_b, use_container_width=True, config={"displayModeBar":False})
 
     col_c, col_d = st.columns(2, gap="medium")
     with col_c:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Avg No-Show Rate by Neighbourhood</div>', unsafe_allow_html=True)
         nd = df.groupby("neighbourhood")["no_show_prob"].mean().sort_values().reset_index()
+        # FIX: clamp values and use explicit cmin/cmax for colorscale to render gradient correctly
+        nd["no_show_prob"] = nd["no_show_prob"].clip(0.0, 1.0)
         fig_n = go.Figure(go.Bar(
             x=nd["no_show_prob"], y=nd["neighbourhood"], orientation="h",
-            marker=dict(color=nd["no_show_prob"], colorscale=[[0,"#00E5A0"],[0.5,"#FFB347"],[1,"#FF4B6E"]], showscale=False),
+            marker=dict(
+                color=nd["no_show_prob"],
+                colorscale=[[0, "#00E5A0"], [0.5, "#FFB347"], [1, "#FF4B6E"]],
+                cmin=0.0,
+                cmax=1.0,
+                showscale=False,
+            ),
             hovertemplate="<b>%{y}</b><br>Avg Risk: %{x:.1%}<extra></extra>",
         ))
         fig_n.update_layout(**layout(height=310))
-        style_axes(fig_n, xfmt=".0%")
+        style_axes(fig_n)
+        fig_n.update_xaxes(tickformat=".0%", range=[0, 1])
         st.plotly_chart(fig_n, use_container_width=True, config={"displayModeBar":False})
 
     with col_d:
@@ -632,7 +653,8 @@ if "Overview" in page:
                 hovertemplate=f"<b>{tier}</b><br>Lead:%{{x}}d · Risk:%{{y:.1%}}<extra></extra>",
             ))
         fig_l.update_layout(**layout(height=310))
-        style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability", yfmt=".0%")
+        style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability")
+        fig_l.update_yaxes(tickformat=".0%", range=[0, 1])
         st.plotly_chart(fig_l, use_container_width=True, config={"displayModeBar":False})
 
     st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin:1.5rem 0 0.75rem;">Recommended Actions — Summary</div>', unsafe_allow_html=True)
