@@ -342,7 +342,7 @@ def layout(**kwargs):
     d.update(kwargs)
     return d
 
-def style_axes(fig, xtitle="", ytitle="", xfmt="", yfmt="", xangle=0):
+def style_axes(fig, xtitle="", ytitle="", xangle=0):
     base = dict(
         gridcolor="rgba(0,212,255,0.07)",
         zerolinecolor="rgba(0,212,255,0.12)",
@@ -351,10 +351,8 @@ def style_axes(fig, xtitle="", ytitle="", xfmt="", yfmt="", xangle=0):
     )
     xextra = {}
     yextra = {}
-    if xtitle: xextra["title"] = xtitle
-    if ytitle: yextra["title"] = ytitle
-    if xfmt:   xextra["tickformat"] = xfmt
-    if yfmt:   yextra["tickformat"] = yfmt
+    if xtitle: xextra["title_text"] = xtitle
+    if ytitle: yextra["title_text"] = ytitle
     if xangle: xextra["tickangle"] = xangle
     fig.update_xaxes(**base, **xextra)
     fig.update_yaxes(**base, **yextra)
@@ -604,8 +602,9 @@ if "Overview" in page:
         fig_b.add_hline(y=0.55, line_dash="dot", line_color="#FF4B6E", annotation_text="High", annotation_font_color="#FF4B6E", annotation_font_size=10)
         fig_b.add_hline(y=0.35, line_dash="dot", line_color="#FFB347", annotation_text="Medium", annotation_font_color="#FFB347", annotation_font_size=10)
         fig_b.update_layout(**layout(height=270))
-        style_axes(fig_b, yfmt=".0%")
+        style_axes(fig_b)
         fig_b.update_xaxes(showticklabels=False)
+        fig_b.update_yaxes(tickformat=".0%", range=[0, 0.65])
         st.plotly_chart(fig_b, use_container_width=True, config={"displayModeBar":False})
 
     col_c, col_d = st.columns(2, gap="medium")
@@ -618,7 +617,8 @@ if "Overview" in page:
             hovertemplate="<b>%{y}</b><br>Avg Risk: %{x:.1%}<extra></extra>",
         ))
         fig_n.update_layout(**layout(height=310))
-        style_axes(fig_n, xfmt=".0%")
+        style_axes(fig_n)
+        fig_n.update_xaxes(tickformat=".0%", range=[0, max(nd["no_show_prob"]) * 1.2])
         st.plotly_chart(fig_n, use_container_width=True, config={"displayModeBar":False})
 
     with col_d:
@@ -632,7 +632,8 @@ if "Overview" in page:
                 hovertemplate=f"<b>{tier}</b><br>Lead:%{{x}}d · Risk:%{{y:.1%}}<extra></extra>",
             ))
         fig_l.update_layout(**layout(height=310))
-        style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability", yfmt=".0%")
+        style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability")
+        fig_l.update_yaxes(tickformat=".0%", range=[0, 0.65])
         st.plotly_chart(fig_l, use_container_width=True, config={"displayModeBar":False})
 
     st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin:1.5rem 0 0.75rem;">Recommended Actions — Summary</div>', unsafe_allow_html=True)
@@ -957,4 +958,4 @@ elif "Drift" in page:
         st.info(f"**Next scheduled check:** {(datetime.now()+timedelta(hours=24)).strftime('%d %b %Y · %H:%M')}")
 
     st.caption("DETAILED REPORT")
-    st.dataframe(dfd, hide_index=True, use_container_width=True, height=290)
+    st.dataframe(dfd, hide_index=True, use_container_width=True, height=
