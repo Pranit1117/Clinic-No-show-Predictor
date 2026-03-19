@@ -1,0 +1,52 @@
+project:
+  name: clinic-noshow-predictor
+  version: "1.0.0"
+  description: "Predicts patient no-shows and recommends interventions"
+
+paths:
+  raw_data: data/raw/appointments.csv
+  processed_data: data/processed/features.parquet
+  external_data: data/external/
+  models: mlflow_runs/
+  reports: reports/
+
+data:
+  target_column: No-show
+  date_columns:
+    - ScheduledDay
+    - AppointmentDay
+  drop_columns:
+    - PatientId
+    - AppointmentID
+  categorical_columns:
+    - Gender
+    - Neighbourhood
+  numeric_columns:
+    - Age
+    - lead_time_days
+    - chronic_condition_count
+
+model:
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42
+  cv_folds: 5
+  positive_class_weight: 4   # tune based on business cost ratio
+  threshold: 0.40            # decision threshold (tuned for F2)
+
+optuna:
+  n_trials: 50
+  timeout: 600
+
+mlflow:
+  experiment_name: noshow-prediction
+  tracking_uri: mlruns
+
+monitoring:
+  psi_threshold: 0.2
+  drift_check_frequency_days: 7
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
