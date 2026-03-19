@@ -606,7 +606,7 @@ if "Overview" in page:
         fig_b.update_layout(**layout(height=270))
         style_axes(fig_b)
         fig_b.update_xaxes(showticklabels=False)
-        fig_b.update_yaxes(tickformat=".0%", range=[0, 1])
+        fig_b.update_yaxes(tickformat=",.0%", range=[0, 0.7], tickvals=[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
         st.plotly_chart(fig_b, use_container_width=True, config={"displayModeBar":False})
 
     col_c, col_d = st.columns(2, gap="medium")
