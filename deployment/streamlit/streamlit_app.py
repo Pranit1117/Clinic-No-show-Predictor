@@ -347,7 +347,7 @@ def style_axes(fig, xtitle="", ytitle="", xfmt="", yfmt="", xangle=0):
         gridcolor="rgba(0,212,255,0.07)",
         zerolinecolor="rgba(0,212,255,0.12)",
         tickfont=dict(color="#E8F0FF", size=11),
-        titlefont=dict(color="#B8CCEE", size=11),
+        title_font=dict(color="#B8CCEE", size=11),
     )
     xextra = {}
     yextra = {}
@@ -958,4 +958,3 @@ elif "Drift" in page:
 
     st.caption("DETAILED REPORT")
     st.dataframe(dfd, hide_index=True, use_container_width=True, height=290)
-
