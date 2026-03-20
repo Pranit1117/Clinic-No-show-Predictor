@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings("ignore")
 
+# ── CACHE BUSTER — increment this whenever simulate_appointments changes ──────
+DATA_VERSION = "v3"
+
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="MediPredict • No-Show Intelligence",
@@ -378,7 +381,7 @@ NEIGH_BASE_RATES = {
 }
 
 def simulate_appointments(n=80):
-    np.random.seed(int(time.time()) % 9999)
+    np.random.seed(42 + n)  # stable seed so neighbourhood variance isn't washed out
     records = []
     base = datetime.now()
     for i in range(n):
@@ -516,12 +519,16 @@ with st.sidebar:
 
     if "Simulate" in data_mode:
         n_pts = st.slider("Appointments to simulate", 30, 200, 80, 10)
-        if st.button("↻  Generate New Batch", use_container_width=True):
+        # Regenerate if button clicked, or if data is stale (wrong version or missing)
+        needs_regen = (
+            st.button("↻  Generate New Batch", use_container_width=True)
+            or "df" not in st.session_state
+            or st.session_state.get("data_version") != DATA_VERSION
+        )
+        if needs_regen:
             st.session_state["df"] = simulate_appointments(n_pts)
             st.session_state["data_label"] = f"Simulated · {n_pts} appointments"
-        if "df" not in st.session_state:
-            st.session_state["df"] = simulate_appointments(n_pts)
-            st.session_state["data_label"] = f"Simulated · {n_pts} appointments"
+            st.session_state["data_version"] = DATA_VERSION
     else:
         uploaded = st.file_uploader("Drop Kaggle CSV here", type=["csv"], label_visibility="collapsed")
         if uploaded:
@@ -533,10 +540,12 @@ with st.sidebar:
                 else:
                     st.session_state["df"] = df_proc
                     st.session_state["data_label"] = f"Uploaded · {len(df_proc):,} rows"
+                    st.session_state["data_version"] = DATA_VERSION
                     st.success(f"✓ {len(df_proc):,} appointments loaded")
-        if "df" not in st.session_state:
+        if "df" not in st.session_state or st.session_state.get("data_version") != DATA_VERSION:
             st.session_state["df"] = simulate_appointments(80)
             st.session_state["data_label"] = "Simulated · 80 appointments"
+            st.session_state["data_version"] = DATA_VERSION
 
     df_main = st.session_state.get("df", simulate_appointments(80))
     label   = st.session_state.get("data_label", "")
