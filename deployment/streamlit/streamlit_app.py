@@ -407,6 +407,15 @@ if "Overview" in page:
     k4.metric("💰 At Risk",      f"${high_r:,.0f}")
     k5.metric("💚 Recoverable",  f"${saved_r:,.0f}", delta=f"+{saved_r/max(high_r,1):.0%}", delta_color="normal")
 
+    # ── TEMPORARY DEBUG — remove after confirming ──
+    with st.expander("🔍 DEBUG — click to expand"):
+        st.write(f"df shape: {df.shape}")
+        st.write(f"no_show_prob min:{df['no_show_prob'].min():.3f} max:{df['no_show_prob'].max():.3f} nulls:{df['no_show_prob'].isna().sum()}")
+        st.write(f"risk_tier counts: {df['risk_tier'].value_counts().to_dict()}")
+        st.write(f"session data_version: {st.session_state.get('data_version','MISSING')}")
+        st.dataframe(df[["patient_id","no_show_prob","risk_tier","lead_time_days","neighbourhood"]].head(10))
+    # ── END DEBUG ──
+
     st.markdown("<br>", unsafe_allow_html=True)
     col_a, col_b = st.columns([1, 2], gap="medium")
 
