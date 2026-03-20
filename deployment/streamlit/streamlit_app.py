@@ -480,48 +480,42 @@ if "Overview" in page:
         st.plotly_chart(fig_n, use_container_width=True, config={"displayModeBar":False})
 
     # ── SCATTER: RISK vs LEAD TIME ────────────────────────────────────────────
-    # ── SCATTER: RISK vs LEAD TIME (FIXED) ────────────────────────────
-with col_d:
-    st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Risk vs Lead Time</div>', unsafe_allow_html=True)
+    with col_d:
+        st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Risk vs Lead Time</div>', unsafe_allow_html=True)
+        fig_l = go.Figure()
+        rng = np.random.default_rng(99)
 
-    fig_l = go.Figure()
-    rng = np.random.default_rng(42)
+        for tier, color in RISK_COLORS.items():
+            sub = df[df["risk_tier"] == tier]
+            if len(sub) == 0:
+                continue
+            # lead_time_days is discrete: 0,1,3,7,14,21,30
+            # Without jitter all points stack invisibly on top of each other.
+            # ±1.2 gives each cluster a 2.4-unit spread, enough to see individuals.
+            jitter_x = sub["lead_time_days"].astype(float) + rng.uniform(-1.2, 1.2, len(sub))
+            jitter_y = sub["no_show_prob"]                 + rng.uniform(-0.01, 0.01, len(sub))
+            fig_l.add_trace(go.Scatter(
+                x=jitter_x, y=jitter_y,
+                mode="markers", name=tier,
+                marker=dict(color=color, size=7, opacity=0.80,
+                            line=dict(width=0.5, color="rgba(0,0,0,0.3)")),
+                hovertemplate=f"<b>{tier}</b><br>Lead: %{{customdata}}d · Risk: %{{y:.1%}}<extra></extra>",
+                customdata=sub["lead_time_days"].values,
+            ))
 
-    for tier, color in RISK_COLORS.items():
-        sub = df[df["risk_tier"] == tier]
+        fig_l.update_layout(**layout(height=340))
+        style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability")
+        fig_l.update_yaxes(tickformat=".0%", range=[0, min(1.0, df["no_show_prob"].max()*1.25)])
+        fig_l.update_xaxes(range=[-2, 33])
+        st.plotly_chart(fig_l, use_container_width=True, config={"displayModeBar":False})
 
-        if len(sub) == 0:
-            continue
+    st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin:1.5rem 0 0.75rem;">Recommended Actions — Summary</div>', unsafe_allow_html=True)
+    ic = df["intervention"].value_counts().reset_index()
+    ic.columns = ["Action","Count"]
+    cols_ic = st.columns(min(4, len(ic)))
+    for col, (_, row) in zip(cols_ic, ic.head(4).iterrows()):
+        col.metric(row["Action"], row["Count"])
 
-        # 🔥 Better jitter (normal distribution)
-        jitter_x = sub["lead_time_days"].astype(float) + rng.normal(0, 0.8, len(sub))
-        jitter_y = sub["no_show_prob"] + rng.normal(0, 0.015, len(sub))
-
-        fig_l.add_trace(go.Scatter(
-            x=jitter_x,
-            y=jitter_y,
-            mode="markers",
-            name=tier,
-            marker=dict(
-                color=color,
-                size=9,              # 🔥 bigger = visible
-                opacity=0.9
-            ),
-            hovertemplate=f"<b>{tier}</b><br>Lead: %{{customdata}}d · Risk: %{{y:.1%}}<extra></extra>",
-            customdata=sub["lead_time_days"].values,
-        ))
-
-    fig_l.update_layout(**layout(height=340))
-    style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability")
-
-    fig_l.update_yaxes(
-        tickformat=".0%",
-        range=[0, min(1.0, df["no_show_prob"].max() * 1.2)]
-    )
-
-    fig_l.update_xaxes(range=[-2, 32])
-
-    st.plotly_chart(fig_l, use_container_width=True, config={"displayModeBar": False})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 2 — PATIENT RISK BOARD
