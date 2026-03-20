@@ -359,6 +359,24 @@ def style_axes(fig, xtitle="", ytitle="", xangle=0):
 
 
 # ── DATA HELPERS ──────────────────────────────────────────────────────────────
+# FIX 1: neighbourhood-specific base rates so bars have real variance
+NEIGH_BASE_RATES = {
+    "JARDIM CAMBURI": 0.18,
+    "ITARARÉ":        0.32,
+    "CENTRO":         0.22,
+    "MARIA ORTIZ":    0.27,
+    "RESISTÊNCIA":    0.31,
+    "JARDIM DA PENHA":0.20,
+    "SÃO CRISTÓVÃO":  0.29,
+    "BONFIM":         0.16,
+    "MARUÍPE":        0.38,
+    "CARATOÍRA":      0.25,
+    "ILHA DO PRÍNCIPE":0.35,
+    "SANTA MARTHA":   0.21,
+    "CONSOLAÇÃO":     0.28,
+    "JESUS DE NAZARETH":0.19,
+}
+
 def simulate_appointments(n=80):
     np.random.seed(int(time.time()) % 9999)
     records = []
@@ -370,15 +388,18 @@ def simulate_appointments(n=80):
         chron = int(np.random.choice([0,1,2,3], p=[0.55,0.25,0.12,0.08]))
         sms   = bool(np.random.choice([0,1], p=[0.45,0.55]))
         dow   = (base + timedelta(minutes=i*10)).weekday()
+        # FIX 1: pick neighbourhood first, use its base rate in p calculation
+        neigh = np.random.choice(NEIGHBOURHOODS)
+        neigh_bias = NEIGH_BASE_RATES[neigh] - 0.27  # centre around 0
         p = float(np.clip(
             0.18 + lead*0.012 + hist*0.45 + (dow==0)*0.06
-            + (chron==0)*0.04 - int(sms)*0.03
+            + (chron==0)*0.04 - int(sms)*0.03 + neigh_bias
             + np.random.normal(0, 0.05), 0.03, 0.97
         ))
         records.append({
             "patient_id":  f"PT-{1000+i:04d}",
             "age": age, "gender": np.random.choice(["F","M"], p=[0.62,0.38]),
-            "neighbourhood": np.random.choice(NEIGHBOURHOODS),
+            "neighbourhood": neigh,
             "appointment_time": (base + timedelta(minutes=i*10)).strftime("%H:%M"),
             "lead_time_days": lead,
             "patient_noshow_rate": hist,
@@ -577,14 +598,23 @@ if "Overview" in page:
     with col_a:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Risk Distribution</div>', unsafe_allow_html=True)
         fig_d = go.Figure(go.Pie(
-            labels=["High","Medium","Low"], values=[high_risk, med_risk, low_risk],
+            labels=["High","Medium","Low"],
+            values=[max(high_risk, 0), max(med_risk, 0), max(low_risk, 0)],
             hole=0.72,
             marker=dict(colors=["#FF4B6E","#FFB347","#00E5A0"], line=dict(color="#0A1628",width=3)),
             textinfo="none",
             hovertemplate="<b>%{label}</b><br>%{value} patients (%{percent})<extra></extra>",
         ))
-        fig_d.add_annotation(text=f"<b>{high_risk}</b><br>HIGH", x=0.5, y=0.5,
-                              showarrow=False, font=dict(color="#FF4B6E",size=16,family="DM Serif Display"))
+        # FIX 2: annotation always reflects correct dominant tier
+        dominant_tier = "HIGH" if high_risk >= med_risk and high_risk >= low_risk else \
+                        "MEDIUM" if med_risk >= low_risk else "LOW"
+        dominant_val  = {"HIGH": high_risk, "MEDIUM": med_risk, "LOW": low_risk}[dominant_tier]
+        dominant_col  = RISK_COLORS[dominant_tier]
+        fig_d.add_annotation(
+            text=f"<b>{dominant_val}</b><br>{dominant_tier}",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(color=dominant_col, size=16, family="DM Serif Display")
+        )
         fig_d.update_layout(**layout(height=270, showlegend=True,
                              legend=dict(orientation="h",yanchor="bottom",y=-0.15,xanchor="center",x=0.5)))
         st.plotly_chart(fig_d, use_container_width=True, config={"displayModeBar":False})
@@ -611,13 +641,14 @@ if "Overview" in page:
     with col_c:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Avg No-Show Rate by Neighbourhood</div>', unsafe_allow_html=True)
         nd = df.groupby("neighbourhood")["no_show_prob"].mean().sort_values().reset_index()
+        # FIX 3: use fixed cmin/cmax so colorscale spans the full green→orange→red range
         fig_n = go.Figure(go.Bar(
             x=nd["no_show_prob"], y=nd["neighbourhood"], orientation="h",
             marker=dict(
                 color=nd["no_show_prob"],
                 colorscale=[[0,"#00E5A0"],[0.5,"#FFB347"],[1,"#FF4B6E"]],
-                cmin=nd["no_show_prob"].min(),
-                cmax=nd["no_show_prob"].max(),
+                cmin=0.15,
+                cmax=0.55,
                 showscale=False,
             ),
             hovertemplate="<b>%{y}</b><br>Avg Risk: %{x:.1%}<extra></extra>",
@@ -630,14 +661,19 @@ if "Overview" in page:
     with col_d:
         st.markdown('<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:#8B9FD4;margin-bottom:0.75rem;">Risk vs Lead Time</div>', unsafe_allow_html=True)
         fig_l = go.Figure()
+        rng = np.random.default_rng(42)
         for tier, color in RISK_COLORS.items():
             sub = df[df["risk_tier"]==tier]
             if len(sub) == 0:
                 continue
+            # FIX 4: add jitter so overlapping points are all visible
+            jitter_x = sub["lead_time_days"] + rng.uniform(-0.5, 0.5, len(sub))
+            jitter_y = sub["no_show_prob"]    + rng.uniform(-0.008, 0.008, len(sub))
             fig_l.add_trace(go.Scatter(
-                x=sub["lead_time_days"], y=sub["no_show_prob"], mode="markers", name=tier,
+                x=jitter_x, y=jitter_y, mode="markers", name=tier,
                 marker=dict(color=color, size=7, opacity=0.75),
-                hovertemplate=f"<b>{tier}</b><br>Lead:%{{x}}d · Risk:%{{y:.1%}}<extra></extra>",
+                hovertemplate=f"<b>{tier}</b><br>Lead:%{{customdata}}d · Risk:%{{y:.1%}}<extra></extra>",
+                customdata=sub["lead_time_days"].values,
             ))
         fig_l.update_layout(**layout(height=310))
         style_axes(fig_l, xtitle="Lead Time (days)", ytitle="Probability")
@@ -692,39 +728,33 @@ elif "Risk Board" in page:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE 3 — PREDICT A PATIENT  (100% native Streamlit — zero HTML in results)
+# PAGE 3 — PREDICT A PATIENT
 # ══════════════════════════════════════════════════════════════════════════════
 elif "Predict" in page:
     section_header("Patient Risk Predictor", "Live prediction — no API required", "🔍")
 
     col_form, col_result = st.columns(2, gap="large")
 
-    # ── INPUT FORM ────────────────────────────────────────────────────────────
     with col_form:
         st.caption("PATIENT & APPOINTMENT DETAILS")
 
-        # Row 1 — two selects (same height)
         a1, a2 = st.columns(2)
         gender = a1.selectbox("Gender", ["F", "M"])
         dow    = a2.selectbox("Day of Week", ["Monday","Tuesday","Wednesday","Thursday","Friday"])
 
-        # Row 2 — two selects (same height)
         b1, b2 = st.columns(2)
         chron        = b1.selectbox("Chronic Conditions", [0,1,2,3],
                                      format_func=lambda x: f"{x} condition{'s' if x!=1 else ''}")
         neighbourhood = b2.selectbox("Neighbourhood", NEIGHBOURHOODS)
 
-        # Row 3 — two sliders (same height)
         c1, c2 = st.columns(2)
         age  = c1.slider("Age", 0, 110, 42)
         lead = c2.slider("Lead Time (days)", 0, 60, 7)
 
-        # Row 4 — two sliders (same height)
         d1, d2 = st.columns(2)
         hist = d1.slider("Historical No-Show Rate", 0.0, 1.0, 0.20, 0.01, format="%.2f")
-        _    = d2.empty()   # placeholder to keep grid tidy
+        _    = d2.empty()
 
-        # Row 5 — checkboxes
         e1, e2, e3 = st.columns(3)
         sms         = e1.checkbox("SMS Sent")
         holiday     = e2.checkbox("Near Holiday")
@@ -734,7 +764,6 @@ elif "Predict" in page:
         st.markdown("<br>", unsafe_allow_html=True)
         run = st.button("⚕  Run Risk Assessment", use_container_width=True)
 
-    # ── RESULTS — ALL NATIVE STREAMLIT, ZERO HTML ─────────────────────────────
     with col_result:
         st.caption("RISK ASSESSMENT RESULT")
 
@@ -743,7 +772,6 @@ elif "Predict" in page:
             st.info("👈  Fill in the patient details and click **Run Risk Assessment**")
 
         else:
-            # Compute score
             p    = score_patient(lead, hist, dow, sms, holiday, rain, chron, scholarship)
             tier = "HIGH" if p >= 0.55 else ("MEDIUM" if p >= 0.35 else "LOW")
             tc   = RISK_COLORS[tier]
@@ -755,7 +783,6 @@ elif "Predict" in page:
             with st.spinner("Analysing risk factors..."):
                 time.sleep(0.5)
 
-            # ── Gauge ─────────────────────────────────────────────────────────
             fig_g = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=p * 100,
@@ -776,15 +803,10 @@ elif "Predict" in page:
             fig_g.update_layout(**layout(height=250, margin=dict(t=30,b=0,l=30,r=30)))
             st.plotly_chart(fig_g, use_container_width=True, config={"displayModeBar":False})
 
-            # ── Risk heading — native markdown ────────────────────────────────
             st.markdown(f"### {icon} {tier} RISK &nbsp;·&nbsp; {p:.1%} probability")
-
-            # ── Action — native info box ──────────────────────────────────────
             st.info(f"**Recommended Action:** {action}")
-
             st.divider()
 
-            # ── Stat metrics — 100% native ────────────────────────────────────
             e1, e2 = st.columns(2)
             e1.metric("No-Show Probability", f"{p:.1%}")
             e2.metric("Revenue at Stake",    f"${rev}")
@@ -795,7 +817,6 @@ elif "Predict" in page:
 
             st.divider()
 
-            # ── Driver chart ──────────────────────────────────────────────────
             st.caption("KEY RISK DRIVERS")
             raw_drivers = {
                 "Patient history":  hist * 0.38,
