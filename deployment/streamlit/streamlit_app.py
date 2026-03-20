@@ -407,7 +407,8 @@ if "Overview" in page:
     k4.metric("💰 At Risk",      f"${high_r:,.0f}")
     k5.metric("💚 Recoverable",  f"${saved_r:,.0f}", delta=f"+{saved_r/max(high_r,1):.0%}", delta_color="normal")
 
-    
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_a, col_b = st.columns([1, 2], gap="medium")
 
     # ── DONUT ─────────────────────────────────────────────────────────────────
     with col_a:
